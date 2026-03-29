@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Recycling Classifier</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: #0f0f0f;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .card {
+            background: #1a1a1a;
+            border-radius: 16px;
+            padding: 40px;
+            max-width: 520px;
+            width: 100%;
+            border: 1px solid #2a2a2a;
+        }
+
+        h1 { font-size: 24px; color: #f0f0f0; margin-bottom: 6px; }
+
+        .subtitle { color: #666; font-size: 14px; margin-bottom: 32px; }
+
+        .tabs { display: flex; gap: 10px; margin-bottom: 20px; }
+
+        .tab-btn {
+            flex: 1;
+            padding: 10px;
+            border-radius: 10px;
+            border: 1px solid #333;
+            background: #222;
+            color: #888;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .tab-btn.active {
+            background: #2d7a2d;
+            border-color: #2d7a2d;
+            color: white;
+        }
+
+        .upload-area {
+            border: 2px dashed #333;
+            border-radius: 12px;
+            padding: 40px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: border-color 0.2s;
+            margin-bottom: 20px;
+        }
+
+        .upload-area:hover { border-color: #4A90D9; }
+        .upload-area.dragover { border-color: #4A90D9; background: #1a2a3a; }
+        .upload-icon { font-size: 40px; margin-bottom: 12px; }
+        .upload-text { color: #aaa; font-size: 15px; margin-bottom: 8px; }
+        .upload-hint { color: #555; font-size: 13px; }
+        #file-input { display: none; }
+
+        #video {
+            width: 100%;
+            display: block;
+            background: #000;
+            border-radius: 12px;
+            margin-bottom: 12px;
+        }
+
+        #canvas { display: none; }
+
+        .camera-controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .cam-btn {
+            flex: 1;
+            padding: 12px;
+            border-radius: 10px;
+            border: none;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .cam-btn.capture { background: #2d7a2d; color: white; }
+        .cam-btn.capture:hover { background: #246024; }
+        .cam-btn.stop { background: #333; color: #aaa; }
+        .cam-btn.stop:hover { background: #444; }
+
+        #preview {
+            display: none;
+            width: 100%;
+            max-height: 260px;
+            object-fit: contain;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            border: 1px solid #2a2a2a;
+            background: #111;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 14px;
+            background: #2d7a2d;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background 0.2s;
+            margin-bottom: 20px;
+        }
+
+        .btn:hover { background: #246024; }
+        .btn:disabled { background: #2a2a2a; color: #555; cursor: not-allowed; }
+
+        #result {
+            display: none;
+            border-radius: 12px;
+            padding: 24px;
+            text-align: center;
+            background: #222;
+            border: 1px solid #2a2a2a;
+        }
+
+        .result-emoji { font-size: 48px; margin-bottom: 8px; }
+
+        .result-class {
+            font-size: 22px;
+            font-weight: 600;
+            color: #f0f0f0;
+            text-transform: capitalize;
+            margin-bottom: 4px;
+        }
+
+        .result-bin { font-size: 15px; color: #888; margin-bottom: 16px; }
+
+        .confidence-bar-bg {
+            background: #333;
+            border-radius: 999px;
+            height: 10px;
+            margin-bottom: 8px;
+            overflow: hidden;
+        }
+
+        .confidence-bar {
+            height: 100%;
+            border-radius: 999px;
+            transition: width 0.5s ease;
+        }
+
+        .confidence-text { font-size: 13px; color: #666; margin-bottom: 10px; }
+
+        .warning {
+            background: #2a1f00;
+            color: #f0a500;
+            border-radius: 8px;
+            padding: 10px 14px;
+            font-size: 13px;
+            margin-top: 8px;
+            border: 1px solid #3a2f00;
+        }
+
+        .loading {
+            text-align: center;
+            color: #666;
+            display: none;
+            margin-bottom: 12px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+<div class="card">
+    <h1>♻️ Smart Recycling Classifier</h1>
+    <p class="subtitle">Upload a photo or use your camera to find out which bin your waste goes in.</p>
+
+    <div class="tabs">
+        <button class="tab-btn active" id="tab-upload" onclick="switchTab('upload')">📁 Upload Image</button>
+        <button class="tab-btn" id="tab-camera" onclick="switchTab('camera')">📷 Use Camera</button>
+    </div>
+
+    <!-- Upload panel -->
+    <div id="panel-upload">
+        <div class="upload-area" id="upload-area">
+            <div class="upload-icon">📂</div>
+            <div class="upload-text">Click to upload or drag & drop</div>
+            <div class="upload-hint">JPG, PNG supported</div>
+            <input type="file" id="file-input" accept="image/*">
+        </div>
+    </div>
+
+    <!-- Camera panel -->
+    <div id="panel-camera" style="display:none">
+        <video id="video" autoplay playsinline></video>
+        <canvas id="canvas"></canvas>
+        <div class="camera-controls">
+            <button class="cam-btn capture" onclick="capturePhoto()">📸 Take Photo</button>
+            <button class="cam-btn stop" onclick="stopCamera()">⏹ Stop Camera</button>
+        </div>
+    </div>
+
+    <img id="preview" src="" alt="Preview">
+
+    <button class="btn" id="classify-btn" disabled>Classify</button>
+
+    <div class="loading" id="loading">⏳ Analysing image...</div>
+
+    <div id="result">
+        <div class="result-emoji" id="result-emoji"></div>
+        <div class="result-class" id="result-class"></div>
+        <div class="result-bin" id="result-bin"></div>
+        <div class="confidence-bar-bg">
+            <div class="confidence-bar" id="confidence-bar"></div>
+        </div>
+        <div class="confidence-text" id="confidence-text"></div>
+        <div class="warning" id="warning" style="display:none"></div>
+    </div>
+</div>
+
+<script>
+    const uploadArea  = document.getElementById('upload-area');
+    const fileInput   = document.getElementById('file-input');
+    const preview     = document.getElementById('preview');
+    const classifyBtn = document.getElementById('classify-btn');
+    const result      = document.getElementById('result');
+    const loading     = document.getElementById('loading');
+    const video       = document.getElementById('video');
+    const canvas      = document.getElementById('canvas');
+
+    let selectedFile = null;
+    let stream       = null;
+
+    function switchTab(tab) {
+        document.getElementById('tab-upload').classList.toggle('active', tab === 'upload');
+        document.getElementById('tab-camera').classList.toggle('active', tab === 'camera');
+        document.getElementById('panel-upload').style.display = tab === 'upload' ? 'block' : 'none';
+        document.getElementById('panel-camera').style.display = tab === 'camera' ? 'block' : 'none';
+
+        if (tab === 'camera') startCamera();
+        else stopCamera();
+
+        preview.style.display = 'none';
+        result.style.display  = 'none';
+        classifyBtn.disabled  = true;
+        selectedFile          = null;
+    }
+
+    uploadArea.addEventListener('click', () => fileInput.click());
+
+    uploadArea.addEventListener('dragover', e => {
+        e.preventDefault();
+        uploadArea.classList.add('dragover');
+    });
+
+    uploadArea.addEventListener('dragleave', () => uploadArea.classList.remove('dragover'));
+
+    uploadArea.addEventListener('drop', e => {
+        e.preventDefault();
+        uploadArea.classList.remove('dragover');
+        handleFile(e.dataTransfer.files[0]);
+    });
+
+    fileInput.addEventListener('change', () => handleFile(fileInput.files[0]));
+
+    function handleFile(file) {
+        if (!file) return;
+        selectedFile = file;
+        const reader = new FileReader();
+        reader.onload = e => {
+            preview.src           = e.target.result;
+            preview.style.display = 'block';
+            classifyBtn.disabled  = false;
+            result.style.display  = 'none';
+        };
+        reader.readAsDataURL(file);
+    }
+
+    async function startCamera() {
+        try {
+            stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+            video.srcObject = stream;
+        } catch (err) {
+            alert('Could not access camera. Please allow camera permissions and try again.');
+        }
+    }
+
+    function stopCamera() {
+        if (stream) {
+            stream.getTracks().forEach(t => t.stop());
+            stream = null;
+        }
+    }
+
+    function capturePhoto() {
+        canvas.width  = video.videoWidth;
+        canvas.height = video.videoHeight;
+        canvas.getContext('2d').drawImage(video, 0, 0);
+
+        preview.src           = canvas.toDataURL('image/jpeg');
+        preview.style.display = 'block';
+        classifyBtn.disabled  = false;
+        result.style.display  = 'none';
+
+        canvas.toBlob(blob => {
+            selectedFile = new File([blob], 'capture.jpg', { type: 'image/jpeg' });
+        }, 'image/jpeg');
+
+        stopCamera();
+        document.getElementById('panel-camera').style.display = 'none';
+    }
+
+    classifyBtn.addEventListener('click', async () => {
+        if (!selectedFile) return;
+
+        classifyBtn.disabled  = true;
+        loading.style.display = 'block';
+        result.style.display  = 'none';
+
+        const formData = new FormData();
+        formData.append('file', selectedFile);
+
+        try {
+            const response = await fetch('/predict', { method: 'POST', body: formData });
+            const data = await response.json();
+
+            document.getElementById('result-emoji').textContent        = data.emoji;
+            document.getElementById('result-class').textContent        = data.class;
+            document.getElementById('result-bin').textContent          = data.bin;
+            document.getElementById('confidence-bar').style.width      = data.confidence + '%';
+            document.getElementById('confidence-bar').style.background = data.color;
+            document.getElementById('confidence-text').textContent     = `Confidence: ${data.confidence}%`;
+
+            const warningEl = document.getElementById('warning');
+            if (data.warning) {
+                warningEl.textContent   = '⚠️ ' + data.warning;
+                warningEl.style.display = 'block';
+            } else {
+                warningEl.style.display = 'none';
+            }
+
+            result.style.display = 'block';
+        } catch (err) {
+            alert('Something went wrong. Please try again.');
+        } finally {
+            loading.style.display = 'none';
+            classifyBtn.disabled  = false;
+        }
+    });
+</script>
+</body>
+</html>

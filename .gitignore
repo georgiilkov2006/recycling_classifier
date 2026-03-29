@@ -1,0 +1,6 @@
+venv/
+dataset/
+model/classifier.h5
+model/training_results.png
+__pycache__/
+*.pyc
